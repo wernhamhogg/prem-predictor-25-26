@@ -1,0 +1,5 @@
+@config "../app/**/*.{js,ts,jsx,tsx,mdx}";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
