@@ -34,7 +34,8 @@ export default async function HomePage() {
     if (teams.length === 0) {
       return <option disabled>Could not load teams</option>;
     }
-    return teams.map(team => <option key={team} value={team}>{team}</option>);
+    // FIX: Added '(team: string)' to satisfy TypeScript
+    return teams.map((team: string) => <option key={team} value={team}>{team}</option>);
   };
 
   return (
