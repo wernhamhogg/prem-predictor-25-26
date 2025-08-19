@@ -1,40 +1,88 @@
-// This async function will run on the server to fetch team data from the FPL API
-async function getTeams() {
-  try {
-    // The official FPL API endpoint for bootstrap data (includes teams, players, etc.)
-    const response = await fetch('https://fantasy.premierleague.com/api/bootstrap-static/');
-    
-    // Check if the request was successful
-    if (!response.ok) {
-      console.error("Failed to fetch FPL data:", response.statusText);
-      return []; // Return an empty array on failure
-    }
-    
-    const data = await response.json();
-    
-    // The team data is in an array called 'teams'. We just want the names.
-    // We map over the array and return a new array containing only the team names.
-    const teamNames = data.teams.map((team: { name: string }) => team.name);
-    
-    return teamNames.sort(); // Sort the teams alphabetically
-    
-  } catch (error) {
-    console.error("An error occurred while fetching FPL data:", error);
-    return []; // Return an empty array if an error occurs
-  }
-}
+// 1. Make this a "Client Component" to allow for interactivity
+"use client";
 
-// We add the 'async' keyword here to allow us to use 'await' for data fetching
-export default async function HomePage() {
-  // We call our new function and wait for it to return the list of teams
-  const teams = await getTeams();
+// 2. Import necessary tools
+import { useState, FormEvent } from 'react';
+import { supabase } from '../utils/supabase/client'; // Make sure this path is correct
+
+// This async function will run on the server to fetch team data from the FPL API
+// NOTE: Since the whole component is now a client component, this server-side
+// fetching logic is no longer part of the component itself. We will address this
+// by passing the initial data as a prop in a future step if needed.
+// For now, let's use a static list to get the form submission working.
+
+export default function HomePage() {
+  // A static list to simplify getting the submission logic working first.
+  const teams = [
+    "Arsenal", "Aston Villa", "Bournemouth", "Brentford", "Brighton",
+    "Chelsea", "Crystal Palace", "Everton", "Fulham", "Ipswich Town",
+    "Leicester City", "Liverpool", "Manchester City", "Manchester United",
+    "Newcastle United", "Nottingham Forest", "Southampton", "Tottenham Hotspur",
+    "West Ham United", "Wolverhampton"
+  ].sort();
+
+  // 3. State to manage the form submission process
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionStatus, setSubmissionStatus] = useState<'success' | 'error' | null>(null);
+
+  // 4. The function that handles form submission
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); // Prevents the page from reloading
+    setIsSubmitting(true);
+    setSubmissionStatus(null);
+
+    const formData = new FormData(event.currentTarget);
+
+    // Collect multi-select values into arrays
+    const top4Teams = [
+      formData.get('top4-1') as string,
+      formData.get('top4-2') as string,
+      formData.get('top4-3') as string,
+    ].filter(Boolean); // filter(Boolean) removes any empty/null selections
+
+    const relegatedTeams = [
+      formData.get('relegated-1') as string,
+      formData.get('relegated-2') as string,
+      formData.get('relegated-3') as string,
+    ].filter(Boolean);
+
+    // 5. Create the data object that matches our Supabase table
+    const predictionData = {
+      name: formData.get('name') as string,
+      email: formData.get('email') as string,
+      title_winner: formData.get('title-winner') as string,
+      top_4_teams: top4Teams,
+      relegated_teams: relegatedTeams,
+      fa_cup_winner: formData.get('fa-cup-winner') as string,
+      cl_winner: formData.get('cl-winner') as string,
+      first_manager_to_leave: formData.get('manager-leave') as string,
+      manager_leave_date: formData.get('manager-date') as string,
+      biggest_hit_signing: formData.get('hit-signing') as string,
+      biggest_flop_signing: formData.get('flop-signing') as string,
+      overachievers: formData.get('overachievers') as string,
+      underachievers: formData.get('underachievers') as string,
+    };
+
+    try {
+      // 6. Send the data to Supabase
+      const { error } = await supabase.from('predictions').insert([predictionData]);
+
+      if (error) {
+        throw error;
+      }
+      
+      setSubmissionStatus('success');
+      (event.target as HTMLFormElement).reset(); // Reset form on success
+
+    } catch (error) {
+      console.error('Error submitting prediction:', error);
+      setSubmissionStatus('error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const renderTeamOptions = () => {
-    // If for some reason the API fails, we provide a default fallback option
-    if (teams.length === 0) {
-      return <option disabled>Could not load teams</option>;
-    }
-    // FIX: Added '(team: string)' to satisfy TypeScript
     return teams.map((team: string) => <option key={team} value={team}>{team}</option>);
   };
 
@@ -45,7 +93,8 @@ export default async function HomePage() {
           Powley's Predictor - 25/26
         </h1>
 
-        <form className="space-y-6">
+        {/* 7. Attach the handleSubmit function to the form's onSubmit event */}
+        <form className="space-y-6" onSubmit={handleSubmit}>
           {/* Section 1: User Info */}
           <div className="p-4 bg-gray-800 rounded-lg">
             <h2 className="text-xl font-semibold mb-4">Your Details</h2>
@@ -61,7 +110,7 @@ export default async function HomePage() {
             </div>
           </div>
 
-          {/* Section 2: Predictions */}
+          {/* Section 2: Predictions (Form fields are the same as before) */}
           <div className="p-4 bg-gray-800 rounded-lg">
             <h2 className="text-xl font-semibold mb-4">Your Predictions</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -69,9 +118,7 @@ export default async function HomePage() {
               <div className="space-y-4">
                 <div>
                   <label htmlFor="title-winner" className="block text-sm font-medium text-gray-300">1. Premier League Title Winner</label>
-                  <select id="title-winner" name="title-winner" className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2">
-                    {renderTeamOptions()}
-                  </select>
+                  <select id="title-winner" name="title-winner" className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2">{renderTeamOptions()}</select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-300">2. Other Top 4 Teams</label>
@@ -91,15 +138,11 @@ export default async function HomePage() {
                 </div>
                 <div>
                   <label htmlFor="fa-cup-winner" className="block text-sm font-medium text-gray-300">4. FA Cup Winner</label>
-                  <select id="fa-cup-winner" name="fa-cup-winner" className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2">
-                    {renderTeamOptions()}
-                  </select>
+                  <select id="fa-cup-winner" name="fa-cup-winner" className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2">{renderTeamOptions()}</select>
                 </div>
                 <div>
                   <label htmlFor="cl-winner" className="block text-sm font-medium text-gray-300">5. Champions League Winner</label>
-                  <select id="cl-winner" name="cl-winner" className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2">
-                    {renderTeamOptions()}
-                  </select>
+                  <select id="cl-winner" name="cl-winner" className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2">{renderTeamOptions()}</select>
                 </div>
               </div>
               {/* Column 2 */}
@@ -122,15 +165,11 @@ export default async function HomePage() {
                 </div>
                  <div>
                   <label htmlFor="overachievers" className="block text-sm font-medium text-gray-300">10. Biggest Overachievers</label>
-                  <select id="overachievers" name="overachievers" className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2">
-                    {renderTeamOptions()}
-                  </select>
+                  <select id="overachievers" name="overachievers" className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2">{renderTeamOptions()}</select>
                 </div>
                  <div>
                   <label htmlFor="underachievers" className="block text-sm font-medium text-gray-300">11. Biggest Underachievers</label>
-                  <select id="underachievers" name="underachievers" className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2">
-                    {renderTeamOptions()}
-                  </select>
+                  <select id="underachievers" name="underachievers" className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2">{renderTeamOptions()}</select>
                 </div>
               </div>
             </div>
@@ -138,10 +177,19 @@ export default async function HomePage() {
 
           <button
             type="submit"
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-md text-lg"
+            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-md text-lg disabled:opacity-50"
+            disabled={isSubmitting}
           >
-            Submit Predictions
+            {isSubmitting ? 'Submitting...' : 'Submit Predictions'}
           </button>
+
+          {/* 8. Display success or error messages to the user */}
+          {submissionStatus === 'success' && (
+            <p className="text-center text-green-400">Prediction submitted successfully!</p>
+          )}
+          {submissionStatus === 'error' && (
+            <p className="text-center text-red-400">Something went wrong. Please try again.</p>
+          )}
         </form>
       </div>
     </main>
