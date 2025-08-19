@@ -1,15 +1,9 @@
-// 1. Make this a "Client Component" to allow for interactivity
+// Make this a "Client Component" to allow for interactivity
 "use client";
 
-// 2. Import necessary tools
+// Import necessary tools
 import { useState, FormEvent } from 'react';
-import { supabase } from '../utils/supabase/client'; // Make sure this path is correct
-
-// This async function will run on the server to fetch team data from the FPL API
-// NOTE: Since the whole component is now a client component, this server-side
-// fetching logic is no longer part of the component itself. We will address this
-// by passing the initial data as a prop in a future step if needed.
-// For now, let's use a static list to get the form submission working.
+import { supabase } from '../utils/supabase/client'; // This line will now work
 
 export default function HomePage() {
   // A static list to simplify getting the submission logic working first.
@@ -21,11 +15,11 @@ export default function HomePage() {
     "West Ham United", "Wolverhampton"
   ].sort();
 
-  // 3. State to manage the form submission process
+  // State to manage the form submission process
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionStatus, setSubmissionStatus] = useState<'success' | 'error' | null>(null);
 
-  // 4. The function that handles form submission
+  // The function that handles form submission
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); // Prevents the page from reloading
     setIsSubmitting(true);
@@ -38,7 +32,7 @@ export default function HomePage() {
       formData.get('top4-1') as string,
       formData.get('top4-2') as string,
       formData.get('top4-3') as string,
-    ].filter(Boolean); // filter(Boolean) removes any empty/null selections
+    ].filter(Boolean);
 
     const relegatedTeams = [
       formData.get('relegated-1') as string,
@@ -46,7 +40,7 @@ export default function HomePage() {
       formData.get('relegated-3') as string,
     ].filter(Boolean);
 
-    // 5. Create the data object that matches our Supabase table
+    // Create the data object that matches our Supabase table
     const predictionData = {
       name: formData.get('name') as string,
       email: formData.get('email') as string,
@@ -64,7 +58,7 @@ export default function HomePage() {
     };
 
     try {
-      // 6. Send the data to Supabase
+      // Send the data to Supabase
       const { error } = await supabase.from('predictions').insert([predictionData]);
 
       if (error) {
@@ -93,7 +87,6 @@ export default function HomePage() {
           Powley's Predictor - 25/26
         </h1>
 
-        {/* 7. Attach the handleSubmit function to the form's onSubmit event */}
         <form className="space-y-6" onSubmit={handleSubmit}>
           {/* Section 1: User Info */}
           <div className="p-4 bg-gray-800 rounded-lg">
@@ -110,7 +103,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Section 2: Predictions (Form fields are the same as before) */}
+          {/* Section 2: Predictions */}
           <div className="p-4 bg-gray-800 rounded-lg">
             <h2 className="text-xl font-semibold mb-4">Your Predictions</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -183,7 +176,6 @@ export default function HomePage() {
             {isSubmitting ? 'Submitting...' : 'Submit Predictions'}
           </button>
 
-          {/* 8. Display success or error messages to the user */}
           {submissionStatus === 'success' && (
             <p className="text-center text-green-400">Prediction submitted successfully!</p>
           )}
