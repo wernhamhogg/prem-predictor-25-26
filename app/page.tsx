@@ -1,87 +1,84 @@
-// 1. Make this a "Client Component" to allow for interactivity
 "use client";
 
-// 2. Import necessary tools
 import { useState, useEffect, FormEvent } from 'react';
 import { supabase } from '../utils/supabase/client';
 
-// Define the shape of a Player object for TypeScript
-interface Player {
-  id: number;
-  web_name: string;
-}
+// 1. Import the new components from Shadcn/UI
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function HomePage() {
-  // --- STATE MANAGEMENT ---
-  // A. State for data fetched from the API
+  // State for data fetched from the API
   const [teams, setTeams] = useState<string[]>([]);
-  const [players, setPlayers] = useState<Player[]>([]);
   
-  // B. State for managing the form UI and submission
+  // State for managing the form submission
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionStatus, setSubmissionStatus] = useState<'success' | 'error' | null>(null);
 
-  // C. State for dynamic dropdowns
-  const [top4Selections, setTop4Selections] = useState({ s1: '', s2: '', s3: '' });
-  const [relegationSelections, setRelegationSelections] = useState({ s1: '', s2: '', s3: '' });
-
-  // D. State for autocomplete text fields
-  const [hitSigningInput, setHitSigningInput] = useState('');
-  const [hitSigningSuggestions, setHitSigningSuggestions] = useState<Player[]>([]);
-  const [flopSigningInput, setFlopSigningInput] = useState('');
-  const [flopSigningSuggestions, setFlopSigningSuggestions] = useState<Player[]>([]);
-
-
-  // --- DATA FETCHING ---
+  // State for controlled form inputs
+  const [formData, setFormData] = useState({
+    name: '', email: '', title_winner: '',
+    top4_1: '', top4_2: '', top4_3: '',
+    relegated_1: '', relegated_2: '', relegated_3: '',
+    fa_cup_winner: '', cl_winner: '',
+    manager_leave: '', manager_date: '',
+    hit_signing: '', flop_signing: '',
+    overachievers: '', underachievers: ''
+  });
+  
+  // Fetch initial team data
   useEffect(() => {
-    // Fetch initial data (teams and players) when the component mounts
     const fetchData = async () => {
       try {
         const response = await fetch('https://fantasy.premierleague.com/api/bootstrap-static/');
         if (!response.ok) throw new Error('Failed to fetch FPL data');
         const data = await response.json();
-        
         const teamNames = data.teams.map((team: { name: string }) => team.name).sort();
-        const playerData = data.elements.map((player: { id: number, web_name: string }) => ({ id: player.id, web_name: player.web_name }));
-
         setTeams(teamNames);
-        setPlayers(playerData);
       } catch (error) {
         console.error("Error fetching initial data:", error);
       }
     };
     fetchData();
-  }, []); // The empty array [] means this runs only once on mount
+  }, []);
 
+  const handleSelectChange = (name: string, value: string) => {
+    setFormData(prev => ({...prev, [name]: value }));
+  };
 
-  // --- EVENT HANDLERS ---
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+  
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
     setSubmissionStatus(null);
-    const formData = new FormData(event.currentTarget);
+
     const predictionData = {
-      name: formData.get('name') as string, email: formData.get('email') as string,
-      title_winner: formData.get('title-winner') as string,
-      top_4_teams: [top4Selections.s1, top4Selections.s2, top4Selections.s3],
-      relegated_teams: [relegationSelections.s1, relegationSelections.s2, relegationSelections.s3],
-      fa_cup_winner: formData.get('fa-cup-winner') as string, cl_winner: formData.get('cl-winner') as string,
-      first_manager_to_leave: formData.get('manager-leave') as string,
-      manager_leave_date: formData.get('manager-date') as string,
-      biggest_hit_signing: hitSigningInput, // Use state value for autocomplete
-      biggest_flop_signing: flopSigningInput, // Use state value for autocomplete
-      overachievers: formData.get('overachievers') as string, underachievers: formData.get('underachievers') as string,
+      name: formData.name, email: formData.email,
+      title_winner: formData.title_winner,
+      top_4_teams: [formData.top4_1, formData.top4_2, formData.top4_3],
+      relegated_teams: [formData.relegated_1, formData.relegated_2, formData.relegated_3],
+      fa_cup_winner: formData.fa_cup_winner, cl_winner: formData.cl_winner,
+      first_manager_to_leave: formData.manager_leave,
+      manager_leave_date: formData.manager_date,
+      biggest_hit_signing: formData.hit_signing,
+      biggest_flop_signing: formData.flop_signing,
+      overachievers: formData.overachievers,
+      underachievers: formData.underachievers
     };
+
     try {
       const { error } = await supabase.from('predictions').insert([predictionData]);
       if (error) throw error;
       setSubmissionStatus('success');
-      (event.target as HTMLFormElement).reset();
-      // Reset all state after successful submission
-      setTop4Selections({ s1: '', s2: '', s3: '' });
-      setRelegationSelections({ s1: '', s2: '', s3: '' });
-      setHitSigningInput('');
-      setFlopSigningInput('');
+      // Reset form after successful submission
+      setFormData({ name: '', email: '', title_winner: '', top4_1: '', top4_2: '', top4_3: '', relegated_1: '', relegated_2: '', relegated_3: '', fa_cup_winner: '', cl_winner: '', manager_leave: '', manager_date: '', hit_signing: '', flop_signing: '', overachievers: '', underachievers: '' });
     } catch (error) {
       console.error('Error submitting prediction:', error);
       setSubmissionStatus('error');
@@ -90,154 +87,100 @@ export default function HomePage() {
     }
   };
 
-  const handleAutocompleteChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'hit' | 'flop') => {
-    const value = e.target.value;
-    if (type === 'hit') {
-      setHitSigningInput(value);
-      if (value.length > 1) {
-        setHitSigningSuggestions(players.filter(p => p.web_name.toLowerCase().includes(value.toLowerCase())).slice(0, 5));
-      } else {
-        setHitSigningSuggestions([]);
-      }
-    } else {
-      setFlopSigningInput(value);
-      if (value.length > 1) {
-        setFlopSigningSuggestions(players.filter(p => p.web_name.toLowerCase().includes(value.toLowerCase())).slice(0, 5));
-      } else {
-        setFlopSigningSuggestions([]);
-      }
-    }
-  };
-
-  const selectSuggestion = (player: Player, type: 'hit' | 'flop') => {
-    if (type === 'hit') {
-      setHitSigningInput(player.web_name);
-      setHitSigningSuggestions([]);
-    } else {
-      setFlopSigningInput(player.web_name);
-      setFlopSigningSuggestions([]);
-    }
-  };
-
-
-  // --- UTILITY RENDER FUNCTIONS ---
   const renderTeamOptions = (exclude: string[] = []) => {
-    const filteredTeams = teams.filter(t => !exclude.includes(t));
-    return (
-      <>
-        <option value="" disabled>Please select...</option>
-        {filteredTeams.map((team: string) => <option key={team} value={team}>{team}</option>)}
-      </>
-    );
+      const filteredTeams = teams.filter(t => !exclude.includes(t));
+      return filteredTeams.map((team: string) => <SelectItem key={team} value={team}>{team}</SelectItem>);
   };
 
-  // --- JSX ---
   return (
-    <main className="flex min-h-screen flex-col items-center p-8 bg-gray-900 text-white">
-      <div className="w-full max-w-2xl">
-        <h1 className="text-4xl font-bold text-center mb-8">Powley's Predictor - 25/26</h1>
+    <main className="flex min-h-screen w-full flex-col items-center p-4 md:p-8 bg-background">
+      <div className="w-full max-w-4xl">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl md:text-5xl font-bold tracking-tight">Powley's Predictor 25/26</h1>
+          <p className="text-muted-foreground mt-2">Fill out your predictions for the upcoming season!</p>
+        </div>
 
-        <form className="space-y-6" onSubmit={handleSubmit}>
-          {/* User Details */}
-          <div className="p-4 bg-gray-800 rounded-lg">
-            <h2 className="text-xl font-semibold mb-4">Your Details</h2>
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-300">Name</label>
-                <input type="text" id="name" name="name" className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2" required />
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <Card>
+            <CardHeader><CardTitle>Your Details</CardTitle></CardHeader>
+            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Name</Label>
+                <Input id="name" name="name" value={formData.name} onChange={handleInputChange} placeholder="Enter your name" required />
               </div>
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-300">Email</label>
-                <input type="email" id="email" name="email" className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2" required />
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" name="email" type="email" value={formData.email} onChange={handleInputChange} placeholder="Enter your email" required />
               </div>
-            </div>
-          </div>
-
-          {/* Predictions */}
-          <div className="p-4 bg-gray-800 rounded-lg">
-            <h2 className="text-xl font-semibold mb-4">Your Predictions</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader><CardTitle>Your Predictions</CardTitle></CardHeader>
+            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
               {/* Column 1 */}
-              <div className="space-y-4">
-                <div>
-                  <label htmlFor="title-winner" className="block text-sm font-medium text-gray-300">1. Premier League Title Winner</label>
-                  <select id="title-winner" name="title-winner" defaultValue="" className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2">{renderTeamOptions()}</select>
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <Label>1. Premier League Title Winner</Label>
+                  <Select name="title_winner" value={formData.title_winner} onValueChange={value => handleSelectChange('title_winner', value)}><SelectTrigger><SelectValue placeholder="Select a team..." /></SelectTrigger><SelectContent>{renderTeamOptions()}</SelectContent></Select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300">2. Other Top 4 Teams</label>
-                  <div className="space-y-2 mt-1">
-                    <select name="top4-1" defaultValue="" onChange={(e) => setTop4Selections({...top4Selections, s1: e.target.value})} className="block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2">{renderTeamOptions([top4Selections.s2, top4Selections.s3])}</select>
-                    <select name="top4-2" defaultValue="" onChange={(e) => setTop4Selections({...top4Selections, s2: e.target.value})} className="block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2">{renderTeamOptions([top4Selections.s1, top4Selections.s3])}</select>
-                    <select name="top4-3" defaultValue="" onChange={(e) => setTop4Selections({...top4Selections, s3: e.target.value})} className="block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2">{renderTeamOptions([top4Selections.s1, top4Selections.s2])}</select>
-                  </div>
+                <div className="space-y-2">
+                  <Label>2. Other Top 4 Teams</Label>
+                  <div className="space-y-2"><Select name="top4_1" value={formData.top4_1} onValueChange={value => handleSelectChange('top4_1', value)}><SelectTrigger><SelectValue placeholder="Select team..." /></SelectTrigger><SelectContent>{renderTeamOptions([formData.top4_2, formData.top4_3])}</SelectContent></Select></div>
+                  <div className="space-y-2"><Select name="top4_2" value={formData.top4_2} onValueChange={value => handleSelectChange('top4_2', value)}><SelectTrigger><SelectValue placeholder="Select team..." /></SelectTrigger><SelectContent>{renderTeamOptions([formData.top4_1, formData.top4_3])}</SelectContent></Select></div>
+                  <div className="space-y-2"><Select name="top4_3" value={formData.top4_3} onValueChange={value => handleSelectChange('top4_3', value)}><SelectTrigger><SelectValue placeholder="Select team..." /></SelectTrigger><SelectContent>{renderTeamOptions([formData.top4_1, formData.top4_2])}</SelectContent></Select></div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300">3. Relegated Teams</label>
-                  <div className="space-y-2 mt-1">
-                    <select name="relegated-1" defaultValue="" onChange={(e) => setRelegationSelections({...relegationSelections, s1: e.target.value})} className="block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2">{renderTeamOptions([relegationSelections.s2, relegationSelections.s3])}</select>
-                    <select name="relegated-2" defaultValue="" onChange={(e) => setRelegationSelections({...relegationSelections, s2: e.target.value})} className="block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2">{renderTeamOptions([relegationSelections.s1, relegationSelections.s3])}</select>
-                    <select name="relegated-3" defaultValue="" onChange={(e) => setRelegationSelections({...relegationSelections, s3: e.target.value})} className="block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2">{renderTeamOptions([relegationSelections.s1, relegationSelections.s2])}</select>
-                  </div>
+                <div className="space-y-2">
+                  <Label>3. Relegated Teams</Label>
+                  <div className="space-y-2"><Select name="relegated_1" value={formData.relegated_1} onValueChange={value => handleSelectChange('relegated_1', value)}><SelectTrigger><SelectValue placeholder="Select team..." /></SelectTrigger><SelectContent>{renderTeamOptions([formData.relegated_2, formData.relegated_3])}</SelectContent></Select></div>
+                  <div className="space-y-2"><Select name="relegated_2" value={formData.relegated_2} onValueChange={value => handleSelectChange('relegated_2', value)}><SelectTrigger><SelectValue placeholder="Select team..." /></SelectTrigger><SelectContent>{renderTeamOptions([formData.relegated_1, formData.relegated_3])}</SelectContent></Select></div>
+                  <div className="space-y-2"><Select name="relegated_3" value={formData.relegated_3} onValueChange={value => handleSelectChange('relegated_3', value)}><SelectTrigger><SelectValue placeholder="Select team..." /></SelectTrigger><SelectContent>{renderTeamOptions([formData.relegated_1, formData.relegated_2])}</SelectContent></Select></div>
                 </div>
-                <div>
-                  <label htmlFor="fa-cup-winner" className="block text-sm font-medium text-gray-300">4. FA Cup Winner</label>
-                  <select id="fa-cup-winner" name="fa-cup-winner" defaultValue="" className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2">{renderTeamOptions()}</select>
+                <div className="space-y-2">
+                  <Label>4. FA Cup Winner</Label>
+                  <Select name="fa_cup_winner" value={formData.fa_cup_winner} onValueChange={value => handleSelectChange('fa_cup_winner', value)}><SelectTrigger><SelectValue placeholder="Select a team..." /></SelectTrigger><SelectContent>{renderTeamOptions()}</SelectContent></Select>
                 </div>
-                <div>
-                  <label htmlFor="cl-winner" className="block text-sm font-medium text-gray-300">5. Champions League Winner</label>
-                  <select id="cl-winner" name="cl-winner" defaultValue="" className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2">{renderTeamOptions()}</select>
+                 <div className="space-y-2">
+                  <Label>5. Champions League Winner</Label>
+                  <Select name="cl_winner" value={formData.cl_winner} onValueChange={value => handleSelectChange('cl_winner', value)}><SelectTrigger><SelectValue placeholder="Select a team..." /></SelectTrigger><SelectContent>{renderTeamOptions()}</SelectContent></Select>
                 </div>
               </div>
               {/* Column 2 */}
-              <div className="space-y-4">
-                <div>
-                  <label htmlFor="manager-leave" className="block text-sm font-medium text-gray-300">6. First Manager to Leave</label>
-                  <input type="text" id="manager-leave" name="manager-leave" className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2" />
+              <div className="space-y-6">
+                 <div className="space-y-2">
+                  <Label htmlFor="manager-leave">6. First Manager to Leave</Label>
+                  <Input id="manager-leave" name="manager_leave" value={formData.manager_leave} onChange={handleInputChange} placeholder="Enter manager's name" />
                 </div>
-                <div>
-                  <label htmlFor="manager-date" className="block text-sm font-medium text-gray-300">7. When will they leave?</label>
-                  <input type="date" id="manager-date" name="manager-date" className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2" />
+                 <div className="space-y-2">
+                  <Label htmlFor="manager-date">7. When will they leave?</Label>
+                  <Input id="manager-date" name="manager_date" type="date" value={formData.manager_date} onChange={handleInputChange} />
                 </div>
-                <div className="relative">
-                  <label htmlFor="hit-signing" className="block text-sm font-medium text-gray-300">8. Biggest Hit Signing</label>
-                  <input type="text" id="hit-signing" value={hitSigningInput} onChange={(e) => handleAutocompleteChange(e, 'hit')} className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2" />
-                  {hitSigningSuggestions.length > 0 && (
-                    <ul className="absolute z-10 w-full bg-gray-800 border border-gray-600 rounded-md mt-1 max-h-60 overflow-auto">
-                      {hitSigningSuggestions.map(player => (
-                        <li key={player.id} onClick={() => selectSuggestion(player, 'hit')} className="p-2 hover:bg-gray-700 cursor-pointer">{player.web_name}</li>
-                      ))}
-                    </ul>
-                  )}
+                 <div className="space-y-2">
+                  <Label htmlFor="hit-signing">8. Biggest Hit Signing</Label>
+                  <Input id="hit-signing" name="hit_signing" value={formData.hit_signing} onChange={handleInputChange} placeholder="Enter player's name" />
                 </div>
-                <div className="relative">
-                  <label htmlFor="flop-signing" className="block text-sm font-medium text-gray-300">9. Biggest Flop Signing</label>
-                  <input type="text" id="flop-signing" value={flopSigningInput} onChange={(e) => handleAutocompleteChange(e, 'flop')} className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2" />
-                  {flopSigningSuggestions.length > 0 && (
-                    <ul className="absolute z-10 w-full bg-gray-800 border border-gray-600 rounded-md mt-1 max-h-60 overflow-auto">
-                      {flopSigningSuggestions.map(player => (
-                        <li key={player.id} onClick={() => selectSuggestion(player, 'flop')} className="p-2 hover:bg-gray-700 cursor-pointer">{player.web_name}</li>
-                      ))}
-                    </ul>
-                  )}
+                 <div className="space-y-2">
+                  <Label htmlFor="flop-signing">9. Biggest Flop Signing</Label>
+                  <Input id="flop-signing" name="flop_signing" value={formData.flop_signing} onChange={handleInputChange} placeholder="Enter player's name" />
                 </div>
-                <div>
-                  <label htmlFor="overachievers" className="block text-sm font-medium text-gray-300">10. Biggest Overachievers</label>
-                  <select id="overachievers" name="overachievers" defaultValue="" className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2">{renderTeamOptions()}</select>
+                 <div className="space-y-2">
+                  <Label>10. Biggest Overachievers</Label>
+                  <Select name="overachievers" value={formData.overachievers} onValueChange={value => handleSelectChange('overachievers', value)}><SelectTrigger><SelectValue placeholder="Select a team..." /></SelectTrigger><SelectContent>{renderTeamOptions()}</SelectContent></Select>
                 </div>
-                <div>
-                  <label htmlFor="underachievers" className="block text-sm font-medium text-gray-300">11. Biggest Underachievers</label>
-                  <select id="underachievers" name="underachievers" defaultValue="" className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2">{renderTeamOptions()}</select>
+                 <div className="space-y-2">
+                  <Label>11. Biggest Underachievers</Label>
+                  <Select name="underachievers" value={formData.underachievers} onValueChange={value => handleSelectChange('underachievers', value)}><SelectTrigger><SelectValue placeholder="Select a team..." /></SelectTrigger><SelectContent>{renderTeamOptions()}</SelectContent></Select>
                 </div>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
-          <button type="submit" disabled={isSubmitting} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-md text-lg disabled:opacity-50">
+          <Button type="submit" disabled={isSubmitting} className="w-full text-lg py-6">
             {isSubmitting ? 'Submitting...' : 'Submit Predictions'}
-          </button>
+          </Button>
 
-          {submissionStatus === 'success' && <p className="text-center text-green-400">Prediction submitted successfully!</p>}
-          {submissionStatus === 'error' && <p className="text-center text-red-400">Something went wrong. Please try again.</p>}
+          {submissionStatus === 'success' && <p className="text-center text-green-500">Prediction submitted successfully!</p>}
+          {submissionStatus === 'error' && <p className="text-center text-red-500">Something went wrong. Please try again.</p>}
         </form>
       </div>
     </main>
